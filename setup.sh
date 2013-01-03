@@ -1,8 +1,8 @@
 install() {
-	DEST=~/.gnome2/rhythmbox/plugins/pandora/
+	DEST=~/.local/share/rhythmbpx/plugins/pandora/
 	SOURCE=$(dirname $0)
 
-	# remove currect version of plugin
+	# remove current version of plugin
 	rm -rf ${DEST}
 
 	# create it
