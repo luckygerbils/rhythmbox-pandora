@@ -17,16 +17,17 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import rb
-import gtk
-class StationEntryView(rb.EntryView):
+from gi.repository import RB
+from gi.repository import Gtk
+
+class StationEntryView(RB.EntryView):
     def __init__(self, db, player):
-        rb.EntryView.__init__(self,db, player, None, False, False)
+        RB.EntryView.__init__(self, None, None)
         self.load_columns()
     
     def load_columns(self):
-        self.append_column(rb.ENTRY_VIEW_COL_TITLE, True)
-        self.append_column(rb.ENTRY_VIEW_COL_LAST_PLAYED, True)
+        self.append_column(RB.EntryViewColumn.TITLE, True)
+        self.append_column(RB.EntryViewColumn.LAST_PLAYED, True)
         
         # column properties
-        self.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
+        self.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)

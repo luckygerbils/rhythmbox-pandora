@@ -27,8 +27,6 @@ class SongsAction(object):
         self.songs_model = pandora_source.songs_model
         self.worker_run = pandora_source.worker_run
         self.action_group = pandora_source.action_group
-        
-        
     
     def connect(self):
         self.songs_list.connect('entry-activated', self.song_activated_cb)
@@ -50,9 +48,7 @@ class SongsAction(object):
     def song_activated_cb(self, entry_view, song_entry):
         print "Song activated"
         url = song_entry.get_playback_uri()
-        
-        
-           
+
     def do_star_clicked(self, entryview, model, iter):
         entry = model.iter_to_entry(iter)
         self.love_song(entry) 
@@ -80,8 +76,8 @@ class SongsAction(object):
     def love_current_song(self):
         entry = self.source.get_current_song_entry()
         if entry:
-		self.songs_list.add_star(entry)
-                self.love_song(entry)
+            self.songs_list.add_star(entry)
+            self.love_song(entry)
 
     def love_selected_song(self, *args):
         selected = self.songs_list.get_selected_entries()

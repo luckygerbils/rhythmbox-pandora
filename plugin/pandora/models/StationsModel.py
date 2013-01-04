@@ -17,11 +17,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import rhythmdb
+from gi.repository import RB
 
-class StationsModel(rhythmdb.QueryModel):
+class StationsModel(RB.RhythmDBQueryModel):
     def __init__(self, db, entry_type):
-        rhythmdb.QueryModel.__init__(self)
+        RB.RhythmDBQueryModel.__init__(self)
         self.__db = db
         self.__entry_type = entry_type
         self.__stations_dict = {}
@@ -29,9 +29,11 @@ class StationsModel(rhythmdb.QueryModel):
         
     def add_station(self, station, name, pos=-1):
         url = station.info_url
-        entry = self.__db.entry_new(self.__entry_type, url)
-        self.__db.set(entry, rhythmdb.PROP_TITLE, name) 
         
+        entry = RB.RhythmDBEntry.new(self.__db, self.__entry_type, url)
+        self.__db.entry_set(entry, RB.RhythmDBPropType.TITLE, str(name))
+        self.__db.commit()
+
         self.add_entry(entry, pos)
         self.__stations_dict[url] = station
         

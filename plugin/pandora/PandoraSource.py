@@ -21,98 +21,110 @@
   an standalone Pandora player written in python, the code of which was
   extraordinarily useful in the creation of this code
 """
-import rhythmdb, rb
-import gobject, gtk
-import gst
-import gnomekeyring as keyring
+from gi.repository import RB
+from gi.repository import GObject
+from gi.repository import GConf
+from gi.repository import Gtk
+from gi.repository import GnomeKeyring
+from gi.repository import Gst
+
 from time import time
-import gconf
 
 from pithos.pandora import *;
 from pithos.gobject_worker import GObjectWorker
 
+import rb
 import widgets
-import models
-import actions
-import notification_icon
+from models import StationsModel
+from models import SongsModel
+
+from actions import SongsAction
+from actions import StationsAction
+
+from notification_icon import NotificationIcon
 
 GCONF_DIR = '/apps/rhythmbox/plugins/pandora'
 
 GCONF_KEYS = {
-	'icon': GCONF_DIR + '/icon'
+        'icon': GCONF_DIR + '/icon'
 }
 
-class PandoraSource(rb.StreamingSource):
-    __gproperties__ = {
-            'plugin': (rb.Plugin,
-            'plugin',
-            'plugin',
-            gobject.PARAM_WRITABLE | gobject.PARAM_CONSTRUCT_ONLY)
-    }
+class PandoraSource(RB.StreamingSource):
+#    __gproperties__ = {
+#            'plugin': (rb.Plugin,
+#            'plugin',
+#            'plugin',
+#            gobject.PARAM_WRITABLE | gobject.PARAM_CONSTRUCT_ONLY)
+#    }
       
     def __init__(self):
-        rb.StreamingSource.__init__(self)
+        RB.StreamingSource.__init__(self,name="PandoraPlugin")
+        
+    def do_selected(self):
+        print "do_selected"
         
     def init(self):
         self.__activated = False
         shell = self.get_property('shell')
-        self.__db = shell.get_property('db')
-        self.__player = shell.get_player()
+        self.__db = shell.props.db
+        self.__player = shell.props.shell_player
+        self.__plugin = self.props.plugin
         self.__entry_type = self.get_property('entry-type')
 
-	self.gconf = gconf.client_get_default()
-            
-            
+        self.gconf = GConf.Client.get_default()
         self.vbox_main = None
-            
+        
         self.create_window()
         self.create_popups()
-        
-        #Pandora
+
+        # Pandora
         self.pandora = make_pandora()
         self.worker = GObjectWorker()
-        self.stations_model = models.StationsModel(self.__db, self.__entry_type)
-        self.songs_model = models.SongsModel(self.__db, self.__entry_type)
+        self.stations_model = StationsModel(self.__db, self.__entry_type)
+        self.songs_model = SongsModel(self.__db, self.__entry_type)
         self.songs_list.set_model(self.songs_model)
         self.current_station = None
         self.current_song = None
         self.connected = False
         self.request_outstanding = False
-        
-        self.songs_action = actions.SongsAction(self)
-	
-	self.notification_icon = None
-	self.refresh_notification_icon()
 
-        self.stations_action = actions.StationsAction(self, self.__plugin)
+        self.songs_action = SongsAction(self)
+
+        self.notification_icon = None
+        self.refresh_notification_icon()
+
+        self.stations_action = StationsAction(self, self.__plugin)
         self.connect_all()
-        
+
         # Enables skipping
         self.set_property('query-model', self.songs_model)
-        
+
         self.retrying = False
         self.waiting_for_playlist = False
-    
+
     def refresh_notification_icon(self, icon_enabled = None):
-	if icon_enabled:
-		enabled = icon_enabled
-	else:
-		enabled = self.gconf.get_bool(GCONF_KEYS['icon'])
-	if enabled and not self.notification_icon:
-		self.notification_icon = notification_icon.NotificationIcon(self.__plugin, self.songs_action)
-		print "Added icon"
-		if self.__player.get_playing_source() != self:
-			self.notification_icon.hide()
-	else:
-		self.destroy_notification_icon()
-		self.notification_icon = None
-	 
+        if icon_enabled:
+            enabled = icon_enabled
+        else:
+            enabled = self.gconf.get_bool(GCONF_KEYS['icon'])
+        if enabled and not self.notification_icon:
+            self.notification_icon = NotificationIcon(self.__plugin, self.songs_action)
+            print "Added icon"
+            if self.__player.get_playing_source() != self:
+                self.notification_icon.hide()
+        else:
+            self.destroy_notification_icon()
+            self.notification_icon = None
+
     def destroy_notification_icon(self):
-	if self.notification_icon:
-		self.notification_icon.destroy()
-   
+        if self.notification_icon:
+            self.notification_icon.destroy()
+
      # rhyhtmbox api break up (0.13.2 - 0.13.3)   
-    def do_get_status(self):
+    def do_get_status(self, *args):
+        '''
+        Method called by Rhythmbox to figure out what to show on this source statusbar.
+        '''
         progress_text = None
         progress = 1
         text = ""
@@ -125,7 +137,7 @@ class PandoraSource(rb.StreamingSource):
                 text =  str(num_stations) + " station"
         else:
             text = "Not connected to Pandora"
-        
+
         # Display Current Station Info
         if self.__player.get_playing() and self.__player.get_playing_source() == self:
             station_name = self.current_station.name
@@ -136,46 +148,50 @@ class PandoraSource(rb.StreamingSource):
         return (text, progress_text, progress)
 
     def do_impl_get_status(self):
-	return self.do_get_status()
-        
+        return self.do_get_status()
+
+    def do_impl_activate(self):
+        print "do_impl_activate"
+
     def do_set_property(self, property, value):
         if property.name == 'plugin':
             self.__plugin = value
         else:
             raise AttributeError, 'unknown property %s' % property.name
-    
+
     def do_impl_get_entry_view(self):
         return self.songs_list
-    
+
     def do_impl_can_pause(self):
         return True
-    
+
     def do_impl_handle_eos(self):
-        return rb.SourceEOFType(3) #next
-    
+        return RB.SourceEOFType(3) # next
+
     def do_impl_try_playlist(self):
         return False
 
     # rhythmbox api break up (0.13.2 - 0.13.3)    
     def show_popup(self, popup):
-	if hasattr(self, 'show_source_popup'):
-		self.show_source_popup(popup)
-	else:
-		self.show_page_popup(popup)
+        if hasattr(self, 'show_source_popup'):
+            self.show_source_popup(popup)
+        else:
+            self.show_page_popup(popup)
+
     # rhythmbox api break up (0.13.2 - 0.13.3)    
     def do_show_popup(self):
         self.show_popup("/PandoraSourceMainPopup")
-	return True
+        return True
 
     def do_impl_show_popup(self):
-	return self.do_show_popup()
-        
+        return self.do_show_popup()
+
     def do_songs_show_popup(self, view, over_entry):
         self.show_single_popup(view, over_entry, "/PandoraSongViewPopup")
-            
+
     def do_stations_show_popup(self, view, over_entry):
         self.show_single_popup(view, over_entry, "/PandoraStationViewPopup")
-                
+
     def show_single_popup(self, view, over_entry, popup):
         if (over_entry):
             selected = view.get_selected_entries()
@@ -184,13 +200,13 @@ class PandoraSource(rb.StreamingSource):
 
     def playing_source_changed(self, source):
         print "Playing source changed"
-	if not self.notification_icon:
-	    return
+        if not self.notification_icon:
+            return
         if self != source:
-	    self.notification_icon.hide()
+            self.notification_icon.hide()
         else:
-	    self.notification_icon.show()
-		
+            self.notification_icon.show()
+
     def playing_entry_changed(self, entry):
         print "Playing Entry changed"
         if not self.__db or not entry:
@@ -198,12 +214,12 @@ class PandoraSource(rb.StreamingSource):
         if entry.get_entry_type() != self.__entry_type:
             return
         self.get_metadata(entry)
-        
+
         url = entry.get_playback_uri()
         self.current_song = self.songs_model.get_song(url)
         if self.songs_model.is_last_entry(entry):
             self.get_playlist()
-    
+
     def create_window(self):
         if self.vbox_main:
             self.remove(self.vbox_main)
@@ -212,104 +228,101 @@ class PandoraSource(rb.StreamingSource):
 
         self.stations_list = widgets.StationEntryView(self.__db, self.__player)
         self.songs_list = widgets.SongEntryView(self.__db, self.__player, self.__plugin)
-        
-        self.vbox_main = gtk.VBox(False, 5)
-        
-        paned = gtk.VPaned()
-        frame1 = gtk.Frame()
-        frame1.set_shadow_type(gtk.SHADOW_OUT)
+        self.vbox_main = Gtk.VBox(False, 5)
+
+        paned = Gtk.VPaned()
+        frame1 = Gtk.Frame()
+        frame1.set_shadow_type(Gtk.ShadowType.OUT)
         frame1.add(self.stations_list)
         paned.pack1(frame1, True, False)
-        frame2 = gtk.Frame()
-        frame2.set_shadow_type(gtk.SHADOW_OUT)
+        frame2 = Gtk.Frame()
+        frame2.set_shadow_type(Gtk.ShadowType.OUT)
         frame2.add(self.songs_list)
         paned.pack2(frame2, True, False)
-        self.vbox_main.pack_start(paned)
+        self.vbox_main.pack_start(paned, True, True, 0)
  
         self.error_area = widgets.ErrorView(self.__plugin, self.do_impl_activate)
         error_frame = self.error_area.get_error_frame()
-        self.vbox_main.pack_end(error_frame, False, False)
+        self.vbox_main.pack_end(error_frame, False, False, 0)
  
         self.vbox_main.show_all()
         self.error_area.hide()
-        
         self.add(self.vbox_main)
-    
-    
-        
+
+
     def connect_all(self):
         self.stations_list.connect('show_popup', self.do_stations_show_popup)
         self.songs_list.connect('show_popup', self.do_songs_show_popup)
         self.songs_action.connect()
         self.stations_action.connect()
 
+
     def create_popups(self):
         manager = self.__player.get_property('ui-manager')
-        self.action_group = gtk.ActionGroup('PandoraPluginActions')
-        action = gtk.Action('SongInfo', _('Song Info...'), _('View song information in browser'), 'gtk-info')
+        self.action_group = Gtk.ActionGroup('PandoraPluginActions')
+        action = Gtk.Action('SongInfo', _('Song Info...'), _('View song information in browser'), 'gtk-info')
         self.action_group.add_action(action)
-        action = gtk.Action('LoveSong', _('Love Song'), _('I love this song'), 'gtk-about')
+        action = Gtk.Action('LoveSong', _('Love Song'), _('I love this song'), 'gtk-about')
         self.action_group.add_action(action)
-        action = gtk.Action('BanSong', _('Ban Song'), _("I don't like this song"), 'gtk-cancel')
+        action = Gtk.Action('BanSong', _('Ban Song'), _("I don't like this song"), 'gtk-cancel')
         self.action_group.add_action(action)
-        action = gtk.Action('TiredSong', _('Tired of this song'), _("I'm tired of this song"), 'gtk-jump-to')
+        action = Gtk.Action('TiredSong', _('Tired of this song'), _("I'm tired of this song"), 'gtk-jump-to')
         self.action_group.add_action(action)
-        action = gtk.Action('Bookmark', _('Bookmark'), _('Bookmark...'), 'gtk-add')
+        action = Gtk.Action('Bookmark', _('Bookmark'), _('Bookmark...'), 'gtk-add')
         self.action_group.add_action(action)
-        action = gtk.Action('BookmarkSong', _('Song'), _("Bookmark this song"), None)
+        action = Gtk.Action('BookmarkSong', _('Song'), _("Bookmark this song"), None)
         self.action_group.add_action(action)
-        action = gtk.Action('BookmarkArtist', _('Artist'), _("Bookmark this artist"), None)
+        action = Gtk.Action('BookmarkArtist', _('Artist'), _("Bookmark this artist"), None)
         self.action_group.add_action(action)
-        
-        action = gtk.Action('AddStation', _('Create a New Station'), _('Create a new Pandora station'), 'gtk-add')
+
+        action = Gtk.Action('AddStation', _('Create a New Station'), _('Create a new Pandora station'), 'gtk-add')
         self.action_group.add_action(action)
-        
-        action = gtk.Action('StationInfo', _('Station Info...'), _('View station information in browser'), 'gtk-info')
+
+        action = Gtk.Action('StationInfo', _('Station Info...'), _('View station information in browser'), 'gtk-info')
         self.action_group.add_action(action)
-        action = gtk.Action('DeleteStation', _('Delete this Station'), _('Delete this Pandora Station'), 'gtk-remove')
+        action = Gtk.Action('DeleteStation', _('Delete this Station'), _('Delete this Pandora Station'), 'gtk-remove')
         self.action_group.add_action(action)
-         
+
         manager.insert_action_group(self.action_group, 0)
-        popup_file = self.__plugin.find_file("pandora/pandora-ui.xml")
+        popup_file = rb.find_plugin_file(self.__plugin, "pandora/pandora-ui.xml")
         self.ui_id = manager.add_ui_from_file(popup_file)
         manager.ensure_update()
 
      # rhyhtmbox api break up (0.13.2 - 0.13.3)   
     def do_selected(self):
-        print "Activating source"
+        print "Activating source."
         if not self.__activated:
             try:
                 self.username, self.password = self.get_pandora_account_info()
             except AccountNotSetException, (instance):
-                #Ask User to configure account
+                # Ask user to configure account
                 self.error_area.show(instance.parameter)
-                #Retry after user put in account
+                # Retry after the user has put in account information.
                 return
             
             self.pandora_connect()
             
             self.__activated = True
-   
-    def do_impl_activate(self):
-	self.do_selected()
-            
 
-        
+    def do_impl_activate(self):
+        self.do_selected()
+
     # TODO: Update UI and Error Msg
     def worker_run(self, fn, args=(), callback=None, message=None, context='net'):
+        print "worker_run"
         self.request_outstanding = True
         self.request_description = message
         self.notify_status_changed()
-        
+
         if isinstance(fn,str):
             fn = getattr(self.pandora, fn)
-            
+
         def cb(v):
             self.request_outstanding = False
             self.request_description = None
             self.notify_status_changed()
             if callback: callback(v)
-            
+
         def eb(e):
                 
             def retry_cb():
@@ -322,10 +335,10 @@ class PandoraSource(rb.StreamingSource):
             self.waiting_for_playlist = False
             self.connected = False
             self.notify_status_changed()
-               
+
             if isinstance(e, PandoraAuthTokenInvalid) and not self.retrying:
                 self.retrying = True
-                print "Automatic reconnect after invalid auth token"                
+                print "Automatic reconnect after invalid auth token"
                 self.pandora_connect("Reconnecting...", retry_cb)
             elif isinstance(e, PandoraNetError):
                 error_message = "Unable to connect. Check your Internet connection."
@@ -337,74 +350,76 @@ class PandoraSource(rb.StreamingSource):
                 error_message = e.message
                 self.__activated = False
                 self.error_area.show(error_message)
-                print e.message
+                print "Pandora returned error: ", e.message
             else:
                 print e.traceback
                 
         self.worker.send(fn, args, cb, eb)
-  
+
     def get_pandora_account_info(self):
-        error_message = "Account details are needed before you can connect.  Check your settings."
         print "Getting account details..."
-        try:
-            result_list = keyring.find_items_sync(keyring.ITEM_GENERIC_SECRET, {'rhythmbox-plugin': 'pandora'})
-        except keyring.NoMatchError:
-            print "Pandora Account Info not found"
+        
+        error_message = "Account details are needed before you can connect.  Check your settings."
+        
+        attrs = GnomeKeyring.Attribute.list_new()
+        GnomeKeyring.Attribute.list_append_string(attrs, 'rhythmbox-plugin', 'pandora')
+        result, items = GnomeKeyring.find_items_sync(GnomeKeyring.ItemType.GENERIC_SECRET, attrs)
+        
+        if result == GnomeKeyring.Result.NO_MATCH or len(items) == 0:
+            print "Pandora Account Info not found."
             raise AccountNotSetException(error_message)
-            
-        result = result_list[0]
-        secret = result.secret
+
+        secret = items[0].secret
         if secret is "":
-            print "Pandora Account Info not found"
+            print "Pandora Account Info empty."
             raise AccountNotSetException(error_message)
         return tuple(secret.split('\n'))
-    
-        
-        
+
+
     def pandora_connect(self, message="Logging in...", callback=None):
-        args = (self.username,
-                self.password)
-                
+        args = (self.username, self.password)
+
         def pandora_ready(*ignore):
+            print "Pandora connected."
             self.stations_model.clear()
-            
-            print "Pandora connected"
+
             #TODO: Station already exists
             #FIXME: Leave out QuickMix for now
             #for i in self.pandora.stations:
             #    if i.isQuickMix:
             #        self.stations_model.add_station(i, "QuickMix")
             
-            for i in self.pandora.stations:
-                if not i.isQuickMix:
-                    self.stations_model.add_station(i, i.name)
+            for station in self.pandora.stations:
+                if not station.isQuickMix:
+                    self.stations_model.add_station(station, station.name)
             self.stations_list.set_model(self.stations_model)
             self.connected = True
             if callback:
-                callback()       
-                
+                callback()
+
         self.worker_run('connect', args, pandora_ready, message, 'login')
-        
+
     def play_station(self, station_entry):
         prev_station = self.current_station
-        
+
         url = station_entry.get_playback_uri()
         self.current_station = self.stations_model.get_station(url)
-        
+
         if prev_station != None and prev_station != self.current_station:
             self.songs_model.clear()
-        
+
         self.get_playlist(start = True)
         print "Station activated %s" %(url)
 
         now = int(time.time())
-        self.__db.set(station_entry, rhythmdb.PROP_LAST_PLAYED, now)
-        
+        self.__db.entry_set(station_entry, RB.RhythmDBPropType.LAST_PLAYED, now)
+        self.__db.commit()
+
     def get_playlist(self, start = False):
         print "Getting playlist"
-        
+
         if self.waiting_for_playlist: return
-            
+
         def callback(songs):
             print "Got playlist"
             first_entry = None
@@ -418,9 +433,7 @@ class PandoraSource(rb.StreamingSource):
             if start:
                 self.songs_list.scroll_to_entry(first_entry)
                 self.__player.play_entry(first_entry, self)
-                
-            
-            
+
         self.waiting_for_playlist = True
         self.worker_run(self.current_station.get_playlist, (), callback, "Getting songs...")
 
@@ -428,34 +441,35 @@ class PandoraSource(rb.StreamingSource):
         if entry == None:
             print "Track not found in DB"
             return True
-        duration = gst.CLOCK_TIME_NONE
+        duration = Gst.CLOCK_TIME_NONE
         try:
-            playerbin = self.__player.get_property ('player').get_property('playbin')
-            duration, format = playerbin.query_duration(gst.FORMAT_TIME)
-            if(duration != gst.CLOCK_TIME_NONE):
-                self.__db.set(entry, rhythmdb.PROP_DURATION, duration/1000000000)
+            duration = self.__player.props.player.get_time()
+            if(duration != Gst.CLOCK_TIME_NONE):
+                self.__db.entry_set(entry, RB.RhythmDBPropType.DURATION, duration/1000000000)
                 self.__db.commit()
             print "duration: %s" %(duration)
         except Exception,e:
             print "Could not query duration"
             print e
             pass 
-     
+
     def get_current_song_entry(self):
-	return self.__player.get_playing_entry()
-   
+        return self.__player.get_playing_entry()
+
     def next_song(self):
         self.__player.do_next()
-    
+
     def is_current_song(self, song):
         return song is self.current_song
-    
+
     def is_current_station(self, station):
         return station is self.current_station
-        
+
+GObject.type_register(PandoraSource)
+
 class AccountNotSetException(Exception):
     def __init__(self, value):
         self.parameter = value
     def __str__(self):
         return repr(self.parameter)
-        
+

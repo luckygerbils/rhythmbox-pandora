@@ -1,6 +1,6 @@
 # -*- coding: utf-8; tab-width: 4; indent-tabs-mode: nil; -*-
 ### BEGIN LICENSE
-# Copyright (C) 2010 Kevin Mehall <km@kevinmehall.net>
+# Copyright (C) 2010-2012 Kevin Mehall <km@kevinmehall.net>
 #This program is free software: you can redistribute it and/or modify it 
 #under the terms of the GNU General Public License version 3, as published 
 #by the Free Software Foundation.
@@ -14,11 +14,13 @@
 #with this program.  If not, see <http://www.gnu.org/licenses/>.
 ### END LICENSE
 
+from gi.repository import GObject
+
 import threading
 import Queue
-import gobject
 import traceback
-gobject.threads_init()
+
+GObject.threads_init()
 
 class GObjectWorker():
     def __init__(self):
@@ -33,11 +35,11 @@ class GObjectWorker():
             try:
                 result = command(*args)
                 if callback:
-                    gobject.idle_add(callback, result)
+                    GObject.idle_add(callback, result)
             except Exception, e:
                 e.traceback = traceback.format_exc()
                 if errorback:
-                    gobject.idle_add(errorback, e)
+                    GObject.idle_add(errorback, e)
                 
     def send(self, command, args=(), callback=None, errorback=None):
         if errorback is None: errorback = self._default_errorback

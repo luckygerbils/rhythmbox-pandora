@@ -44,10 +44,10 @@ class StationsAction(object):
         
         action = self.action_group.get_action('DeleteStation')
         action.connect('activate', self.show_delete_dialog)
-        
+
     def station_activated_cb(self, entry_view, station_entry):
         self.source.play_station(station_entry)
-        
+
     def station_selected_cb(self, entry_view):
         print "Station selected"
         if not self.source.is_current_station(None):

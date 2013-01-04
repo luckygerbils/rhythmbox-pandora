@@ -1,7 +1,7 @@
-[RB Plugin]
+[Plugin]
 Loader=python
 Module=pandora
-IAge=1
+IAge=2
 Name=Pandora
 Description=Plays Pandora Stations
 Authors=Meng Jun Zheng <mzheng@andrew.cmu.edu>

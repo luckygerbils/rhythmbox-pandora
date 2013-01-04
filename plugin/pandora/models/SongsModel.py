@@ -17,13 +17,12 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import rhythmdb
-import pandora
+from gi.repository import RB
 
-class SongsModel(rhythmdb.QueryModel):
+class SongsModel(RB.RhythmDBQueryModel):
     MAX = 20
     def __init__(self, db, entry_type):
-        rhythmdb.QueryModel.__init__(self)
+        RB.RhythmDBQueryModel.__init__(self)
         self.__db = db
         self.__entry_type = entry_type
         self.__last_entry = None
@@ -31,13 +30,13 @@ class SongsModel(rhythmdb.QueryModel):
         
     def add_song(self, song, duration=None):
         url = song.audioUrl
-        entry = self.__db.entry_new(self.__entry_type, url)
-        self.__db.set(entry, rhythmdb.PROP_TITLE, song.title)
-        self.__db.set(entry, rhythmdb.PROP_ARTIST, song.artist)
-        self.__db.set(entry, rhythmdb.PROP_ALBUM, song.album)
+        entry = RB.RhythmDBEntry.new(self.__db, self.__entry_type, url)
+        self.__db.entry_set(entry, RB.RhythmDBPropType.TITLE, str(song.title))
+        self.__db.entry_set(entry, RB.RhythmDBPropType.ARTIST, str(song.artist))
+        self.__db.entry_set(entry, RB.RhythmDBPropType.ALBUM, str(song.album))
         if duration != None:
-            self.__db.set(entry, rhythmdb.PROP_DURATION, duration/1000000000)
-        if song.rating == pandora.RATE_LOVE:
+            self.__db.entry_set(entry, RB.RhythmDBPropType.DURATION, duration/1000000000)
+        if song.rating == 'love':
             self.__db.entry_keyword_add(entry, 'star')
         self.__db.commit()
         self.add_entry(entry, -1)

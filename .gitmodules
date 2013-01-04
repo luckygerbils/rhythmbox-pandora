@@ -1,0 +1,3 @@
+[submodule "pithos"]
+	path = pithos
+	url = https://github.com/kevinmehall/pithos.git

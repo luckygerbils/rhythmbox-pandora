@@ -15,99 +15,104 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+from gi.repository import RB
+from gi.repository import Peas
+from gi.repository import GObject
+from gi.repository import Gtk
+from gi.repository import GdkPixbuf
 
-import rhythmdb, rb
-import gobject, gtk
-import gst
-import gnomekeyring as keyring
+import rb
+import logging
 
-from pithos.pandora import *;
-from pithos.gobject_worker import GObjectWorker
+import sys
+
+#import gst
+#import gnomekeyring as keyring
+
+#from pithos.pandora import *;
+#from pithos.gobject_worker import GObjectWorker
 
 from PandoraConfigureDialog import PandoraConfigureDialog
 from PandoraSource import PandoraSource
 
-
-
-class PandoraPlugin(rb.Plugin):
-
+class ConsoleHandler(logging.StreamHandler):
     def __init__(self):
-        rb.Plugin.__init__(self)
-            
-    def activate(self, shell):
-        print "activating pandora plugin"
+        logging.StreamHandler.__init__(self)
+
+    def emit(self, record):
+        print self.format(record)
+
+logging.getLogger().addHandler(ConsoleHandler())
+logging.getLogger().setLevel(logging.DEBUG)
+logging.debug("hello %s", "world");
+
+class PandoraPlugin(GObject.Object, Peas.Activatable):
+    __gtype_name__ = 'PandoraPlugin'
+    object = GObject.property(type=GObject.Object)
+    
+    def __init__(self):
+        super(PandoraPlugin, self).__init__()
+    
+    def do_activate(self):
+        """Activate the pandora plugin. Called when checked within the Rhythmbox plugin pane."""
+        print "Activating pandora plugin."
+        
+        shell = self.object
+        dir(shell)
         db = shell.props.db
-	try:
-		entry_type = db.entry_register_type("PandoraEntryType")
-	except AttributeError:
-		entry_type = rhythmdb.EntryType()
+        entry_type = PandoraEntryType()
+        db.register_entry_type(entry_type)
         
-        width, height = gtk.icon_size_lookup(gtk.ICON_SIZE_LARGE_TOOLBAR)
-        icon = gtk.gdk.pixbuf_new_from_file_at_size(self.find_file("pandora.png"), width, height)
-	# rhythmbox api break up (0.13.2 - 0.13.3)
-	if hasattr(shell, 'append_source'):
-        	self.source = gobject.new (PandoraSource, 
-	                                   shell=shell,
-        	                           plugin=self, 
-        	                           name=_("Pandora"),
-        	                           icon=icon, 
-        	                           entry_type=entry_type)
-
-        	shell.append_source(self.source, None)
-	else:
-		group = rb.rb_display_page_group_get_by_id ("library")
-		self.source = gobject.new (PandoraSource, 
-	                                   shell=shell,
-        	                           plugin=self, 
-        	                           name=_("Pandora"),
-        	                           pixbuf=icon, 
-        	                           entry_type=entry_type)
-
-        	shell.append_display_page(self.source, group)
-
+        _, width, height = Gtk.icon_size_lookup(Gtk.IconSize.LARGE_TOOLBAR)
+        pandora_icon = GdkPixbuf.Pixbuf.new_from_file_at_size(rb.find_plugin_file(self, "pandora.png"), width, height)
+        
+        self.source = GObject.new(
+            PandoraSource,
+            shell=shell,
+            name="Pandora",
+            plugin=self,
+            pixbuf=pandora_icon,
+            entry_type=entry_type)
+        library_group = RB.DisplayPageGroup.get_by_id("library")
+        shell.append_display_page(self.source, library_group)
         shell.register_entry_type_for_source(self.source, entry_type)
-        
-        # hack, should be done within gobject constructor
-        self.source.init()
-        
-        self.pec_id = shell.get_player().connect_after('playing-song-changed', self.playing_entry_changed)
-        self.psc_id = shell.get_player().connect_after('playing-source-changed', self.playing_source_changed)
-        
 
-    def deactivate(self, shell):
-        print "deactivating pandora plugin"
-        shell.get_player().disconnect (self.pec_id)
-        shell.get_player().disconnect (self.psc_id)
-	self.source.destroy_notification_icon()
+        # hack, should be done within gobject constructor
+        self.source.init();
+        
+        self.pec_id = shell.props.shell_player.connect_after('playing-song-changed', self.playing_entry_changed)
+        self.psc_id = shell.props.shell_player.connect_after('playing-source-changed', self.playing_source_changed)
+
+    def do_deactivate(self):
+        """Deactivate the Pandora plugin. Called when unchecked within the Rhythmbox plugin pane."""
+        print "Deactivating pandora plugin."
+        shell = self.object
+        shell.props.shell_player.disconnect (self.pec_id)
+        shell.props.shell_player.disconnect (self.psc_id)
+        self.source.destroy_notification_icon()
         self.source.delete_thyself()
         self.source = None
         
     def create_configure_dialog(self, dialog=None, callback=None):
-	def dialog_closed_callback(icon_enabled):
-	    self.source.refresh_notification_icon(icon_enabled)
-	    if callback:
-		callback()
+        def dialog_closed_callback(icon_enabled):
+            self.source.refresh_notification_icon(icon_enabled)
+            if callback:
+                callback()
 
         if not dialog:
-            builder_file = self.find_file("pandora-prefs.ui")
+            builder_file = rb.find_plugin_file(self, "pandora-prefs.ui")
             dialog_wrapper = PandoraConfigureDialog(builder_file, dialog_closed_callback)
             dialog = dialog_wrapper.get_dialog()
         dialog.present()
         return dialog
-    
-    
+
     def playing_entry_changed(self, sp, entry):
         self.source.playing_entry_changed(entry)
 
     def playing_source_changed(self, player, source):
-	self.source.playing_source_changed(source)
-        
+        self.source.playing_source_changed(source)
 
-            
-
-        
-
-        
-            
-gobject.type_register(PandoraSource)
+class PandoraEntryType(RB.RhythmDBEntryType):
+    def __init__(self):
+        RB.RhythmDBEntryType.__init__(self, name='PandoraEntryType')
 

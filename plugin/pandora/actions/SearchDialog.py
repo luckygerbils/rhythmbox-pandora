@@ -22,10 +22,11 @@
 # This file is in the public domain
 ### END LICENSE
 
-import gtk, gobject
+from gi.repository import Gtk
+
 import cgi
 
-class SearchDialog(gtk.Dialog):
+class SearchDialog(Gtk.Dialog):
     __gtype_name__ = "SearchDialog"
 
     def __init__(self):
@@ -117,7 +118,7 @@ def NewSearchDialog(plugin, worker_run):
     ui_filename = plugin.find_file("pandora/actions/SearchDialog.ui")
 
     
-    builder = gtk.Builder()
+    builder = Gtk.Builder()
     builder.add_from_file(ui_filename)    
     dialog = builder.get_object("search_dialog")
     dialog.finish_initializing(builder, worker_run)

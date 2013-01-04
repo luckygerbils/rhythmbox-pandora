@@ -17,11 +17,14 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import gtk
-def NewDeleteDialog(plugin):
-    ui_filename = plugin.find_file("pandora/actions/DeleteDialog.ui")
+from gi.repository import Gtk
 
-    builder = gtk.Builder()
+import rb
+
+def NewDeleteDialog(plugin):
+    ui_filename = rb.find_plugin_file(plugin, "pandora/actions/DeleteDialog.ui")
+
+    builder = Gtk.Builder()
     builder.add_from_file(ui_filename)    
     dialog = builder.get_object("delete_confirm_dialog")
     return dialog
