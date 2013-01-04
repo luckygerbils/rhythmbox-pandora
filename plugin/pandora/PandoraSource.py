@@ -171,9 +171,13 @@ class PandoraSource(RB.StreamingSource):
     def do_impl_try_playlist(self):
         return False
 
-    # rhythmbox api break up (0.13.2 - 0.13.3)    
+    
     def show_popup(self, popup):
-        if hasattr(self, 'show_source_popup'):
+        if hasattr(self, 'show_popup'):
+            # Rhythmbox 3 API
+            RB.StreamingSource.show_popup(self, popup)
+        elif hasattr(self, 'show_source_popup'):
+        # rhythmbox api break up (0.13.2 - 0.13.3)
             self.show_source_popup(popup)
         else:
             self.show_page_popup(popup)
@@ -443,11 +447,12 @@ class PandoraSource(RB.StreamingSource):
             return True
         duration = Gst.CLOCK_TIME_NONE
         try:
-            duration = self.__player.props.player.get_time()
+            duration_nanos = self.__player.props.player.get_time()
             if(duration != Gst.CLOCK_TIME_NONE):
-                self.__db.entry_set(entry, RB.RhythmDBPropType.DURATION, duration/1000000000)
+                duration_seconds = duration_nanos / 1000000000
+                self.__db.entry_set(entry, RB.RhythmDBPropType.DURATION, duration_seconds)
                 self.__db.commit()
-            print "duration: %s" %(duration)
+            print "duration: %s" %(duration_nanos)
         except Exception,e:
             print "Could not query duration"
             print e

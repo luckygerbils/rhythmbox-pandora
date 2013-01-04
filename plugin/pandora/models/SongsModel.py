@@ -75,7 +75,7 @@ class SongsModel(RB.RhythmDBQueryModel):
             
         #Remove from the model
         for removing_entry in removing:
-            print "Removing Song %s" % (self.__db.entry_get(removing_entry, rhythmdb.PROP_TITLE))
+            print "Removing Song %s" % (self.__db.entry_get(removing_entry, RB.RhythmDBPropType.TITLE))
             url = removing_entry.get_playback_uri()
             self.delete_song(url)
         self.__db.commit()
@@ -105,7 +105,7 @@ class SongsModel(RB.RhythmDBQueryModel):
         if not id:
             raise Exception('Bad id' + id)
   
-        eid = db.entry_get(id, rhythmdb.PROP_ENTRY_ID)
+        eid = db.entry_get(id, RB.RhythmDBPropType.ENTRY_ID)
         if not eid:
             raise Exception('Bad eid' + eid)
   
