@@ -22,18 +22,25 @@ from gi.repository import RB
 class SongsModel(RB.RhythmDBQueryModel):
     MAX = 20
     def __init__(self, db, entry_type):
-        RB.RhythmDBQueryModel.__init__(self)
+        RB.RhythmDBQueryModel.__init__(self, db=db)
         self.__db = db
         self.__entry_type = entry_type
         self.__last_entry = None
         self.__songs_dict = {} # Map from url to song
-        
+        self.__art_store = RB.ExtDB(name="album-art")
+
     def add_song(self, song, duration=None):
         url = song.audioUrl
         entry = RB.RhythmDBEntry.new(self.__db, self.__entry_type, url)
         self.__db.entry_set(entry, RB.RhythmDBPropType.TITLE, str(song.title))
         self.__db.entry_set(entry, RB.RhythmDBPropType.ARTIST, str(song.artist))
         self.__db.entry_set(entry, RB.RhythmDBPropType.ALBUM, str(song.album))
+        
+        # Store album art in ExtDB
+        key = RB.ExtDBKey.create_storage('album', song.album)
+        key.add_field("artist", song.artist)
+        self.__art_store.store_uri(key, RB.ExtDBSourceType.SEARCH, song.artRadio)
+        
         if duration != None:
             self.__db.entry_set(entry, RB.RhythmDBPropType.DURATION, duration/1000000000)
         if song.rating == 'love':
@@ -66,16 +73,16 @@ class SongsModel(RB.RhythmDBQueryModel):
         if (self.get_num_entries() < count):
             return
         iter = self.get_iter_first()
-        entry = self.iter_to_entry(iter)
+        entry = self.get(iter, 0)[0]
         removing.append(entry)
         for i in range(count - 1):
             iter = self.iter_next(iter)
-            entry = self.iter_to_entry(iter)
+            entry = self.get(iter, 0)[0]
             removing.append(entry)
             
         #Remove from the model
         for removing_entry in removing:
-            print "Removing Song %s" % (self.__db.entry_get(removing_entry, RB.RhythmDBPropType.TITLE))
+            print "Removing Song %s" % (removing_entry.get_string(RB.RhythmDBPropType.TITLE))
             url = removing_entry.get_playback_uri()
             self.delete_song(url)
         self.__db.commit()
@@ -96,22 +103,4 @@ class SongsModel(RB.RhythmDBQueryModel):
         self.remove_entry(removing_entry)
         self.__db.entry_delete(removing_entry)
         self.__db.commit()
-        
-            
-    #HACK around Python's QueryModel binding problem 
-    def iter_to_entry(self, iter):
-        db = self.__db
-        id = self.get(iter, 0)[0]
-        if not id:
-            raise Exception('Bad id' + id)
-  
-        eid = db.entry_get(id, RB.RhythmDBPropType.ENTRY_ID)
-        if not eid:
-            raise Exception('Bad eid' + eid)
-  
-        entry = db.entry_lookup_by_id(eid)
-  
-        if not entry:
-            raise Exception('iter_to_entry: bad entry ' + repr(eid) + ' ' + repr(id))
 
-        return entry

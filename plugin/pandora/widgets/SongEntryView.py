@@ -22,21 +22,21 @@ from gi.repository import Gtk
 from gi.repository import GdkPixbuf
 from gi.repository import GObject
 
-from cellpixbufbutton import *
 import rb
 
 class SongEntryView(RB.EntryView):
+    """Entry view for displaying the upcoming list of Pandora songs."""
+    
     __gsignals__ = {
         'star': (GObject.SIGNAL_RUN_LAST, GObject.TYPE_NONE,
                  (Gtk.TreeModel, Gtk.TreeIter)),
     }
     
     def __init__(self, db, player, plugin):
-        RB.EntryView.__init__(self, None, None)
+        RB.EntryView.__init__(self, db=db, shell_player=player)
         
         self.db = db
         self.plugin = plugin
-
         self.pixs = [GdkPixbuf.Pixbuf.new_from_file(rb.find_plugin_file(self.plugin, 'pandora/widgets/star-off.png')),
                      GdkPixbuf.Pixbuf.new_from_file(rb.find_plugin_file(self.plugin, 'pandora/widgets/star-on.png'))]
 
@@ -48,13 +48,15 @@ class SongEntryView(RB.EntryView):
         self.append_column(RB.EntryViewColumn.ARTIST, True)
         self.append_column(RB.EntryViewColumn.ALBUM, True)
         self.append_column(RB.EntryViewColumn.DURATION, True)
-
-        cell_render = CellPixbufButton()
-        cell_render.connect('clicked', self.star_click)
+        
+        cell_render = Gtk.CellRendererPixbuf()
+        #cell_render.connect('clicked', self.star_click)
+        
         column = Gtk.TreeViewColumn()
         column.pack_start(cell_render, True)
+        
         column.set_cell_data_func(cell_render, self.star_func)
-        #column.set_sizing (Gtk.TREE_VIEW_COLUMN_FIXED)
+        column.set_sizing (Gtk.TreeViewColumnSizing.FIXED)
         column.set_fixed_width(self.pixs[0].get_width() + 5)
         self.append_column_custom(column, "", "STAR", lambda x: x, lambda x: x)
 
@@ -62,19 +64,17 @@ class SongEntryView(RB.EntryView):
         self.set_columns_clickable(False)
         self.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
     
-    def star_func(self, column, cell, model, iter):
-        print "Star func called."
+    def star_func(self, column, cell, model, iter, other):
+        print "star_func"
 #        entry = model.iter_to_entry(iter)
 #        star = self.has_star(entry)
-
 #        if star:
 #            pixbuf = self.pixs[1]
 #        else:
 #            pixbuf = self.pixs[0]
-
 #        cell.set_property('pixbuf', pixbuf)
-#        
-#        
+
+
     def star_click(self, cell, model, path, iter):
         print "Clicked star."
 #        entry = model.iter_to_entry(iter)

@@ -21,11 +21,10 @@ from gi.repository import RB
 from gi.repository import Gtk
 
 class StationEntryView(RB.EntryView):
+    """Entry view for displaying the list of Pandora Stations."""
     def __init__(self, db, player):
-        RB.EntryView.__init__(self, None, None)
-        self.load_columns()
-    
-    def load_columns(self):
+        RB.EntryView.__init__(self, db=db, shell_player=player)
+        
         self.append_column(RB.EntryViewColumn.TITLE, True)
         self.append_column(RB.EntryViewColumn.LAST_PLAYED, True)
         

@@ -23,8 +23,10 @@
 ### END LICENSE
 
 from gi.repository import Gtk
+from gi.repository import GObject
 
 import cgi
+import rb
 
 class SearchDialog(Gtk.Dialog):
     __gtype_name__ = "SearchDialog"
@@ -55,7 +57,7 @@ class SearchDialog(Gtk.Dialog):
         self.treeview = self.builder.get_object('treeview')
         self.okbtn = self.builder.get_object('okbtn')
         self.searchbtn = self.builder.get_object('searchbtn')
-        self.model = gtk.ListStore(gobject.TYPE_PYOBJECT, str)
+        self.model = Gtk.ListStore(GObject.TYPE_PYOBJECT, str)
         self.treeview.set_model(self.model)
         
         self.worker_run = worker_run
@@ -98,9 +100,12 @@ class SearchDialog(Gtk.Dialog):
         self.searchbtn.set_label("Searching...")
         
     def get_selected(self):
-        sel = self.treeview.get_selection().get_selected()
-        if sel:
-            return self.treeview.get_model().get_value(sel[1], 0)
+        selection = self.treeview.get_selection()
+        if not selection:
+            return None
+        selected = selection.get_selected()
+        if selected and selected[1]:
+            return self.treeview.get_model().get_value(selected[1], 0)
             
     def cursor_changed(self, *ignore):
         self.result = self.get_selected()
@@ -115,9 +120,8 @@ def NewSearchDialog(plugin, worker_run):
     """
 
     #look for the ui file that describes the ui
-    ui_filename = plugin.find_file("pandora/actions/SearchDialog.ui")
+    ui_filename = rb.find_plugin_file(plugin, "pandora/actions/SearchDialog.ui")
 
-    
     builder = Gtk.Builder()
     builder.add_from_file(ui_filename)    
     dialog = builder.get_object("search_dialog")

@@ -29,12 +29,11 @@ from gi.repository import GnomeKeyring
 from gi.repository import Gst
 
 from time import time
+from time import sleep
 
 from pithos.pandora import *;
 from pithos.gobject_worker import GObjectWorker
 
-import rb
-import widgets
 from models import StationsModel
 from models import SongsModel
 
@@ -42,6 +41,9 @@ from actions import SongsAction
 from actions import StationsAction
 
 from notification_icon import NotificationIcon
+
+import rb
+import widgets
 
 GCONF_DIR = '/apps/rhythmbox/plugins/pandora'
 
@@ -60,44 +62,41 @@ class PandoraSource(RB.StreamingSource):
     def __init__(self):
         RB.StreamingSource.__init__(self,name="PandoraPlugin")
         
-    def do_selected(self):
-        print "do_selected"
-        
     def init(self):
         self.__activated = False
-        shell = self.get_property('shell')
-        self.__db = shell.props.db
-        self.__player = shell.props.shell_player
+        self.__shell = self.props.shell
+        self.__db = self.__shell.props.db
+        self.__player = self.__shell.props.shell_player
         self.__plugin = self.props.plugin
-        self.__entry_type = self.get_property('entry-type')
+        self.__entry_type = self.props.entry_type
 
         self.gconf = GConf.Client.get_default()
         self.vbox_main = None
         
         self.create_window()
         self.create_popups()
-
+        
         # Pandora
         self.pandora = make_pandora()
         self.worker = GObjectWorker()
+        
         self.stations_model = StationsModel(self.__db, self.__entry_type)
         self.songs_model = SongsModel(self.__db, self.__entry_type)
         self.songs_list.set_model(self.songs_model)
+        self.props.query_model = self.songs_model # Enables skipping
+        
         self.current_station = None
         self.current_song = None
         self.connected = False
         self.request_outstanding = False
-
+        
         self.songs_action = SongsAction(self)
-
-        self.notification_icon = None
-        self.refresh_notification_icon()
-
         self.stations_action = StationsAction(self, self.__plugin)
+        
+        self.notification_icon = NotificationIcon(self.__plugin, self.songs_action)
+        self.refresh_notification_icon()
+        
         self.connect_all()
-
-        # Enables skipping
-        self.set_property('query-model', self.songs_model)
 
         self.retrying = False
         self.waiting_for_playlist = False
@@ -107,27 +106,33 @@ class PandoraSource(RB.StreamingSource):
             enabled = icon_enabled
         else:
             enabled = self.gconf.get_bool(GCONF_KEYS['icon'])
-        if enabled and not self.notification_icon:
-            self.notification_icon = NotificationIcon(self.__plugin, self.songs_action)
-            print "Added icon"
-            if self.__player.get_playing_source() != self:
-                self.notification_icon.hide()
+
+        if enabled and self.__player.get_playing_source() == self:
+            self.notification_icon.show()
         else:
-            self.destroy_notification_icon()
-            self.notification_icon = None
+            self.notification_icon.hide()
+            
+    def do_selected(self):
+        print "do_selected"
 
-    def destroy_notification_icon(self):
-        if self.notification_icon:
-            self.notification_icon.destroy()
-
-     # rhyhtmbox api break up (0.13.2 - 0.13.3)   
     def do_get_status(self, *args):
-        '''
-        Method called by Rhythmbox to figure out what to show on this source statusbar.
-        '''
+        """Return the current status of the Pandora source.
+        
+        Called by Rhythmbox to figure out what to show on the statusbar.
+        
+        Args:
+            args: Unknown
+        
+        Returns:
+            A tuple of:
+                the text status to display
+                the status to display on the progress bar
+                the progress value, if the progress value is less than zero, the progress bar will pulse.
+        """
         progress_text = None
         progress = 1
         text = ""
+
         if self.connected:
             self.error_area.hide()
             num_stations = self.stations_model.get_num_entries()
@@ -147,60 +152,57 @@ class PandoraSource(RB.StreamingSource):
             progress = -1
         return (text, progress_text, progress)
 
-    def do_impl_get_status(self):
-        return self.do_get_status()
-
-    def do_impl_activate(self):
-        print "do_impl_activate"
-
-    def do_set_property(self, property, value):
-        if property.name == 'plugin':
-            self.__plugin = value
-        else:
-            raise AttributeError, 'unknown property %s' % property.name
-
     def do_impl_get_entry_view(self):
+        print "do_impl_get_entry_view"
         return self.songs_list
 
     def do_impl_can_pause(self):
+        """Indicate that pausing of source entries is available.
+        
+        Called by Rhythmbox to determine whether playback of entries from the source can be paused.
+        
+        Returns:
+            True to indicate the pausing is supported.
+        """
         return True
 
     def do_impl_handle_eos(self):
+        """Handle End Of Stream event by going to the next song.
+        
+        Called by Rhythmbox to handle EOS events when playing entries from this source.
+        
+        Returns:
+            The source EOF type indicating to skip to the next song.
+        """
         return RB.SourceEOFType(3) # next
 
     def do_impl_try_playlist(self):
+        """Don't try to parse playback URIs in this source as playlists.
+        
+        Called by Rhythmbox to determine if URIs should be parsed as playlists rather than just played.
+        
+        Returns:
+            False to disable playlist parsing.
+        """
         return False
 
-    
-    def show_popup(self, popup):
-        if hasattr(self, 'show_popup'):
-            # Rhythmbox 3 API
-            RB.StreamingSource.show_popup(self, popup)
-        elif hasattr(self, 'show_source_popup'):
-        # rhythmbox api break up (0.13.2 - 0.13.3)
-            self.show_source_popup(popup)
-        else:
-            self.show_page_popup(popup)
-
-    # rhythmbox api break up (0.13.2 - 0.13.3)    
-    def do_show_popup(self):
-        self.show_popup("/PandoraSourceMainPopup")
-        return True
-
-    def do_impl_show_popup(self):
-        return self.do_show_popup()
-
     def do_songs_show_popup(self, view, over_entry):
-        self.show_single_popup(view, over_entry, "/PandoraSongViewPopup")
-
-    def do_stations_show_popup(self, view, over_entry):
-        self.show_single_popup(view, over_entry, "/PandoraStationViewPopup")
-
-    def show_single_popup(self, view, over_entry, popup):
-        if (over_entry):
+        if over_entry:
             selected = view.get_selected_entries()
             if len(selected) == 1:
-                self.show_popup(popup)
+                self.show_single_popup("/PandoraSongViewPopup")
+
+    def do_stations_show_popup(self, view, over_entry):
+        if over_entry:
+            selected = view.get_selected_entries()
+            if len(selected) == 1:
+                self.show_single_popup("/PandoraStationViewPopup")
+        else:
+            self.show_single_popup("/PandoraSourceMainPopup")
+
+    def show_single_popup(self, popup):
+        popup = self.__player.props.ui_manager.get_widget(popup)
+        popup.popup(None, None, None, None, 3, Gtk.get_current_event_time())
 
     def playing_source_changed(self, source):
         print "Playing source changed"
@@ -232,6 +234,7 @@ class PandoraSource(RB.StreamingSource):
 
         self.stations_list = widgets.StationEntryView(self.__db, self.__player)
         self.songs_list = widgets.SongEntryView(self.__db, self.__player, self.__plugin)
+        
         self.vbox_main = Gtk.VBox(False, 5)
 
         paned = Gtk.VPaned()
@@ -262,7 +265,6 @@ class PandoraSource(RB.StreamingSource):
 
 
     def create_popups(self):
-        manager = self.__player.get_property('ui-manager')
         self.action_group = Gtk.ActionGroup('PandoraPluginActions')
         action = Gtk.Action('SongInfo', _('Song Info...'), _('View song information in browser'), 'gtk-info')
         self.action_group.add_action(action)
@@ -287,6 +289,7 @@ class PandoraSource(RB.StreamingSource):
         action = Gtk.Action('DeleteStation', _('Delete this Station'), _('Delete this Pandora Station'), 'gtk-remove')
         self.action_group.add_action(action)
 
+        manager = self.__player.props.ui_manager
         manager.insert_action_group(self.action_group, 0)
         popup_file = rb.find_plugin_file(self.__plugin, "pandora/pandora-ui.xml")
         self.ui_id = manager.add_ui_from_file(popup_file)
@@ -447,21 +450,27 @@ class PandoraSource(RB.StreamingSource):
             return True
         duration = Gst.CLOCK_TIME_NONE
         try:
-            duration_nanos = self.__player.props.player.get_time()
-            if(duration != Gst.CLOCK_TIME_NONE):
+            sleep(1) # FIXME: Hack, but seems to be returning 0 immediately after the playing-song-changed signal
+            query_success, format, duration_nanos = self.__player.props.player.props.playbin.query_duration(Gst.Format.TIME)
+            if query_success and duration_nanos != Gst.CLOCK_TIME_NONE:
+                print "duration: %s" %(duration_nanos)
                 duration_seconds = duration_nanos / 1000000000
                 self.__db.entry_set(entry, RB.RhythmDBPropType.DURATION, duration_seconds)
                 self.__db.commit()
-            print "duration: %s" %(duration_nanos)
+            
         except Exception,e:
             print "Could not query duration"
             print e
-            pass 
-
+            pass
+    
+    def get_progress(text, progress):
+        print "get_progress"
+    
     def get_current_song_entry(self):
         return self.__player.get_playing_entry()
 
     def next_song(self):
+        print "next_song"
         self.__player.do_next()
 
     def is_current_song(self, song):

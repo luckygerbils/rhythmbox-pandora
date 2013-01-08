@@ -79,7 +79,6 @@ class StationsAction(object):
             
     
     def add_station_cb(self, dialog, response):
-        print "in add_station_cb", dialog.result, response
         if response == 1:
             self.worker_run("add_station_by_music_id", (dialog.result.musicId,), self.station_added, "Creating station...")
         dialog.hide()
@@ -117,3 +116,4 @@ class StationsAction(object):
                 first_station_entry = self.stations_model.get_first_station()
                 print "Deleted current station, play first station instead"
                 self.source.play_station(first_station_entry)
+

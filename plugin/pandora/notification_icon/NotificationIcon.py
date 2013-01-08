@@ -20,7 +20,6 @@ class NotificationIcon:
             item.connect('activate', action) 
             item.show()
             menu.append(item)
-            print "Added item"
             return item
 
         # Action callbacks

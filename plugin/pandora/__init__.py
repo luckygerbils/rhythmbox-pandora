@@ -26,12 +26,6 @@ import logging
 
 import sys
 
-#import gst
-#import gnomekeyring as keyring
-
-#from pithos.pandora import *;
-#from pithos.gobject_worker import GObjectWorker
-
 from PandoraConfigureDialog import PandoraConfigureDialog
 from PandoraSource import PandoraSource
 
@@ -43,8 +37,7 @@ class ConsoleHandler(logging.StreamHandler):
         print self.format(record)
 
 logging.getLogger().addHandler(ConsoleHandler())
-logging.getLogger().setLevel(logging.DEBUG)
-logging.debug("hello %s", "world");
+logging.getLogger().setLevel(logging.WARN)
 
 class PandoraPlugin(GObject.Object, Peas.Activatable):
     __gtype_name__ = 'PandoraPlugin'
@@ -58,7 +51,6 @@ class PandoraPlugin(GObject.Object, Peas.Activatable):
         print "Activating pandora plugin."
         
         shell = self.object
-        dir(shell)
         db = shell.props.db
         entry_type = PandoraEntryType()
         db.register_entry_type(entry_type)
@@ -89,7 +81,6 @@ class PandoraPlugin(GObject.Object, Peas.Activatable):
         shell = self.object
         shell.props.shell_player.disconnect (self.pec_id)
         shell.props.shell_player.disconnect (self.psc_id)
-        self.source.destroy_notification_icon()
         self.source.delete_thyself()
         self.source = None
         
