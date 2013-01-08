@@ -112,11 +112,11 @@ class SongsAction(object):
     def tire_current_song(self):
         song = self.source.current_song;
         if song:
-                self.tire_song(song)             
+            self.tire_song(song)
         
     def tired_selected_song(self, *args):
         song = self.selected_song()
-        tire_song(song)
+        self.tire_song(song)
         
     def delete_song(self, song):
         url = song.audioUrl
@@ -134,5 +134,4 @@ class SongsAction(object):
         song = self.selected_song()
         self.worker_run(song.bookmark_artist, (), None, "Bookmarking...")
         print "Bookmarked artist: %s" %(song.artist)
-                
-                
+

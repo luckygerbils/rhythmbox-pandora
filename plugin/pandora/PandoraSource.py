@@ -222,6 +222,7 @@ class PandoraSource(RB.StreamingSource):
         self.get_metadata(entry)
 
         url = entry.get_playback_uri()
+        
         self.current_song = self.songs_model.get_song(url)
         if self.songs_model.is_last_entry(entry):
             self.get_playlist()
@@ -453,7 +454,6 @@ class PandoraSource(RB.StreamingSource):
             sleep(1) # FIXME: Hack, but seems to be returning 0 immediately after the playing-song-changed signal
             query_success, format, duration_nanos = self.__player.props.player.props.playbin.query_duration(Gst.Format.TIME)
             if query_success and duration_nanos != Gst.CLOCK_TIME_NONE:
-                print "duration: %s" %(duration_nanos)
                 duration_seconds = duration_nanos / 1000000000
                 self.__db.entry_set(entry, RB.RhythmDBPropType.DURATION, duration_seconds)
                 self.__db.commit()

@@ -25,8 +25,18 @@ class StationEntryView(RB.EntryView):
     def __init__(self, db, player):
         RB.EntryView.__init__(self, db=db, shell_player=player)
         
+        player.connect_after('playing-changed', self.playing_changed)
+        
         self.append_column(RB.EntryViewColumn.TITLE, True)
         self.append_column(RB.EntryViewColumn.LAST_PLAYED, True)
         
         # column properties
         self.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+
+    def playing_changed(self, player, playing):
+        """ Update the playing state of this view so that the now playing icon displays. """
+        print 'playing changed'
+        if playing:
+            self.props.playing_state = RB.EntryViewState.PLAYING
+        else:
+            self.props.playing_state = RB.EntryViewState.PAUSED

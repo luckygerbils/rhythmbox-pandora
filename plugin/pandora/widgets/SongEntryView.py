@@ -38,10 +38,13 @@ class SongEntryView(RB.EntryView):
     def __init__(self, db, player, plugin):
         RB.EntryView.__init__(self, db=db, shell_player=player)
         
+        
         self.db = db
         self.plugin = plugin
         self.pixs = [GdkPixbuf.Pixbuf.new_from_file(rb.find_plugin_file(self.plugin, 'pandora/widgets/star-off.png')),
                      GdkPixbuf.Pixbuf.new_from_file(rb.find_plugin_file(self.plugin, 'pandora/widgets/star-on.png'))]
+                     
+        player.connect_after('playing-changed', self.playing_changed)
 
         self.load_columns()
         
@@ -64,6 +67,13 @@ class SongEntryView(RB.EntryView):
         # column properties
         self.set_columns_clickable(False)
         self.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+    
+    def playing_changed(self, player, playing):
+        """ Update the playing state of this view so that the now playing icon displays. """
+        if playing:
+            self.props.playing_state = RB.EntryViewState.PLAYING
+        else:
+            self.props.playing_state = RB.EntryViewState.PAUSED
     
     def set_star_cell_data(self, column, cell, model, iter, other):
         """ Set the data stored for a cell.
