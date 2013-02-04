@@ -14,6 +14,11 @@ Features
 Install
 =======
 
+Check out the project dependencies::
+
+        git submodule init
+        git submodule update
+
 Install it with::
 
 	sh setup.sh
